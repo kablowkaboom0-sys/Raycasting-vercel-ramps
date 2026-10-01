@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Raycasting Engine Test</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%;image-rendering:auto}
+#hud{position:fixed;top:12px;left:12px;color:#fff;background:#0009;padding:9px 12px;border-radius:8px;font:14px monospace;line-height:1.45;pointer-events:none;z-index:10}
+#help{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);color:#fff;background:#0009;padding:8px 12px;border-radius:8px;font:13px Arial;text-align:center;pointer-events:none;z-index:10}
+#joystick{position:fixed;left:28px;bottom:35px;width:120px;height:120px;border:3px solid #ffffff66;border-radius:50%;background:#ffffff18;z-index:5;touch-action:none}
+#stick{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px;border-radius:50%;background:#ffffff66;border:2px solid #fff9;box-sizing:border-box}
+#look{position:fixed;right:0;top:0;width:50%;height:100%;z-index:3;touch-action:none}
+#jump{position:fixed;right:32px;bottom:55px;width:82px;height:82px;border-radius:50%;border:2px solid #fff9;background:#ffffff2b;color:white;font:bold 15px Arial;z-index:6;touch-action:none}
+@media (min-width:700px){#joystick,#jump{opacity:.45}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud"></div>
+<div id="help">WASD / Arrow keys: move | Space: jump | Shift: sprint | Q/E: turn</div>
+<div id="joystick"><div id="stick"></div></div>
+<div id="look"></div>
+<button id="jump">JUMP</button>
+<script>
+"use strict";
+const canvas=document.getElementById("view"),ctx=canvas.getContext("2d"),hud=document.getElementById("hud");
+let W=0,H=0;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}addEventListener("resize",resize);resize();
+
+const map=[
+"111111111111111111111111",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000001111110000000001",
+"100000001000010000000001",
+"100000001000010000000001",
+"100000001000010000000001",
+"100000001111110000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"100000000000000000000001",
+"111111111111111111111111" ];
+const FOV=Math.PI/3,NUM_RAYS=Math.min(900,innerWidth);
+const RAMP={x1:4.2,y1:2.0,x2:7.8,y2:5.0,height:1.5};
+const p={x:3.5,y:3.5,z:0,vz:0,a:0,ground:true};
+const EYE_HEIGHT=1.5;
+function rampFloor(x,y){
+ if(x>=RAMP.x1&&x<=RAMP.x2&&y>=RAMP.y1&&y<=RAMP.y2)
+  return RAMP.height*((x-RAMP.x1)/(RAMP.x2-RAMP.x1));
+ return 0;
+}
+const keys={};
+addEventListener("keydown",e=>{keys[e.code]=true;if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault()});
+addEventListener("keyup",e=>keys[e.code]=false);
+
+function solid(x,y){const gx=Math.floor(x),gy=Math.floor(y);return gy<0||gy>=map.length||gx<0||gx>=map[0].length||map[gy][gx]==="1"}
+function move(dx,dy){const r=.2;if(!solid(p.x+dx+r*Math.sign(dx),p.y))p.x+=dx;if(!solid(p.x,p.y+dy+r*Math.sign(dy)))p.y+=dy}
+function cast(angle){
+ const dx=Math.cos(angle),dy=Math.sin(angle);let mx=Math.floor(p.x),my=Math.floor(p.y);
+ const ddx=Math.abs(1/dx),ddy=Math.abs(1/dy);let sx,sy,sdx,sdy;
+ if(dx<0){sx=-1;sdx=(p.x-mx)*ddx}else{sx=1;sdx=(mx+1-p.x)*ddx}
+ if(dy<0){sy=-1;sdy=(p.y-my)*ddy}else{sy=1;sdy=(my+1-p.y)*ddy}
+ let side=0,dist=0;
+ for(let i=0;i<64;i++){if(sdx<sdy){sdx+=ddx;mx+=sx;side=0}else{sdy+=ddy;my+=sy;side=1}
+  if(my<0||my>=map.length||mx<0||mx>=map[0].length||map[my][mx]==="1"){dist=side===0?sdx-ddx:sdy-ddy;break}}
+ return{dist:Math.max(.001,dist),side}
+}
+function projectPoint(x,y,z){
+ const dx=x-p.x,dy=y-p.y;
+ const ca=Math.cos(p.a),sa=Math.sin(p.a);
+ const depth=dx*ca+dy*sa;
+ if(depth<=0.05)return null;
+ const side=-dx*sa+dy*ca;
+ const scale=H/(depth*.92);
+ return {x:W/2+(side/depth)*(W/(2*Math.tan(FOV/2))),y:H*.51-(z-(EYE_HEIGHT+p.z))*scale};
+}
+function drawRamp(){
+ // Debug ramp is deliberately rendered as a huge solid wedge in front of spawn.
+ const x0=4.0,x1=8.0,y0=2.0,y1=5.0,h=1.8;
+ const A=projectPoint(x0,y0,0),B=projectPoint(x1,y0,h);
+ const C=projectPoint(x1,y1,h),D=projectPoint(x0,y1,0);
+ if(A&&B&&C&&D){
+  ctx.fillStyle="#00ff00";
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="#ff00ff";ctx.lineWidth=6;ctx.stroke();
+ }
+}
+function render(){
+ // Sector-style floor test. Unlike the old overlay, every screen column
+ // samples the floor height along the ray, allowing genuine raised/sloped ground.
+ ctx.fillStyle="#79b7e8";ctx.fillRect(0,0,W,H);
+ const horizon=H*.51;
+ ctx.fillStyle="#303030";ctx.fillRect(0,horizon,W,H-horizon);
+
+ const rays=Math.min(NUM_RAYS,W),step=W/rays;
+ const cameraHeight=EYE_HEIGHT+p.z;
+
+ for(let x=0;x<rays;x++){
+  const cameraX=(x/rays)*2-1;
+  const rayAngle=p.a+Math.atan(cameraX*Math.tan(FOV/2));
+  const hit=cast(rayAngle);
+  const wallDist=Math.max(.05,hit.dist*Math.cos(rayAngle-p.a));
+  const scale=H/(wallDist*.92);
+
+  const wallBottom=horizon+cameraHeight*scale;
+  const wallTop=horizon-(2.5-cameraHeight)*scale;
+
+  // Draw wall first.
+  const shade=hit.side?150:180;
+  ctx.fillStyle="rgb("+shade+","+shade+","+shade+")";
+  ctx.fillRect(x*step,wallTop,step+1,Math.max(1,wallBottom-wallTop));
+
+  // Floor casting: walk forward through the visible world and project
+  // each sampled floor height. The ramp therefore becomes actual 3D ground.
+  const maxD=Math.min(hit.dist,12);
+  const samples=80;
+  for(let j=0;j<samples;j++){
+   const d0=0.15+(maxD-0.15)*(j/samples);
+   const d1=0.15+(maxD-0.15)*((j+1)/samples);
+   const wx0=p.x+Math.cos(rayAngle)*d0;
+   const wy0=p.y+Math.sin(rayAngle)*d0;
+   const wx1=p.x+Math.cos(rayAngle)*d1;
+   const wy1=p.y+Math.sin(rayAngle)*d1;
+   const z0=rampFloor(wx0,wy0);
+   const z1=rampFloor(wx1,wy1);
+   const y0=horizon-(z0-cameraHeight)*(H/(d0*.92));
+   const y1=horizon-(z1-cameraHeight)*(H/(d1*.92));
+   const top=Math.min(y0,y1);
+   const bottom=Math.max(y0,y1);
+   if(bottom>horizon-2 && top<H){
+    const onRamp=(z0>0.001||z1>0.001);
+    ctx.fillStyle=onRamp?"#8b6a3e":"#303030";
+    ctx.fillRect(x*step,Math.max(horizon-1,top),step+1,Math.max(1,bottom-top));
+   }
+  }
+ }
+
+ // Draw a strong slope edge for debugging, but the visible surface above
+ // is now produced by floor-height projection rather than a screen overlay.
+ const A=projectPoint(RAMP.x1,RAMP.y1,0);
+ const B=projectPoint(RAMP.x2,RAMP.y1,RAMP.height);
+ const C=projectPoint(RAMP.x2,RAMP.y2,RAMP.height);
+ const D=projectPoint(RAMP.x1,RAMP.y2,0);
+ if(A&&B&&C&&D){
+  ctx.strokeStyle="#ffff00";ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+  ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.stroke();
+ }
+
+ ctx.strokeStyle="#fff8";ctx.lineWidth=1;
+ ctx.beginPath();
+ ctx.moveTo(W/2-7,H/2);ctx.lineTo(W/2+7,H/2);
+ ctx.moveTo(W/2,H/2-7);ctx.lineTo(W/2,H/2+7);
+ ctx.stroke();
+}
+
+const joy=document.getElementById("joystick"),stick=document.getElementById("stick");
+let joyId=null,joyX=0,joyY=0;
+function updateJoy(e){
+ const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+ let dx=e.clientX-cx,dy=e.clientY-cy,max=Math.max(30,(r.width-stick.offsetWidth)/2),d=Math.hypot(dx,dy);
+ if(d>max){dx=dx/d*max;dy=dy/d*max}
+ joyX=dx/max;joyY=dy/max;
+ stick.style.transform="translate("+dx+"px,"+dy+"px)";
+}
+function joyStart(e){
+ joyId=e.pointerId;
+ try{joy.setPointerCapture(joyId)}catch(_){}
+ updateJoy(e);
+ e.preventDefault();
+}
+function joyMove(e){
+ if(e.pointerId!==joyId)return;
+ updateJoy(e);
+ e.preventDefault();
+}
+function endJoy(e){
+ if(e.pointerId!==joyId)return;
+ joyId=null;joyX=joyY=0;stick.style.transform="translate(0,0)";
+ e.preventDefault();
+}
+joy.addEventListener("pointerdown",joyStart,{passive:false});
+joy.addEventListener("pointermove",joyMove,{passive:false});
+joy.addEventListener("pointerup",endJoy,{passive:false});
+joy.addEventListener("pointercancel",endJoy,{passive:false});
+joy.addEventListener("lostpointercapture",()=>{joyId=null;joyX=joyY=0;stick.style.transform="translate(0,0)"});
+
+
+const look=document.getElementById("look");
+let lookId=null,lastLookX=0;
+look.addEventListener("pointerdown",e=>{lookId=e.pointerId;lastLookX=e.clientX;look.setPointerCapture(lookId);e.preventDefault()});
+look.addEventListener("pointermove",e=>{if(e.pointerId!==lookId)return;const dx=e.clientX-lastLookX;lastLookX=e.clientX;p.a+=dx*.008;e.preventDefault()});
+function endLook(e){if(e.pointerId===lookId)lookId=null}
+look.addEventListener("pointerup",endLook);look.addEventListener("pointercancel",endLook);
+
+const jump=document.getElementById("jump");
+jump.addEventListener("pointerdown",e=>{keys.Space=true;e.preventDefault()});
+jump.addEventListener("pointerup",e=>{keys.Space=false;e.preventDefault()});
+jump.addEventListener("pointercancel",e=>keys.Space=false);
+
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(.033,(now-last)/1000);last=now;
+ let turn=0;if(keys.KeyQ||keys.ArrowLeft)turn-=1;if(keys.KeyE||keys.ArrowRight)turn+=1;p.a+=turn*2.2*dt;
+ let f=0,s=0;
+ if(keys.KeyW||keys.ArrowUp)f++;if(keys.KeyS||keys.ArrowDown)f--;
+ if(keys.KeyA)s--;if(keys.KeyD)s++;
+ if(Math.abs(joyY)>.08)f=-joyY;if(Math.abs(joyX)>.08)s=joyX;
+ const len=Math.hypot(f,s)||1;f/=len;s/=len;
+ const speed=(keys.ShiftLeft||keys.ShiftRight)?4.2:2.7;
+ move((Math.cos(p.a)*f-Math.sin(p.a)*s)*speed*dt,(Math.sin(p.a)*f+Math.cos(p.a)*s)*speed*dt);
+ const floorNow=rampFloor(p.x,p.y);
+ if(p.ground)p.z=floorNow;
+ if(keys.Space&&p.ground){p.vz=3.8;p.ground=false}
+ if(!p.ground){
+  p.vz-=12*dt;p.z+=p.vz*dt;
+  if(p.z<=floorNow){p.z=floorNow;p.vz=0;p.ground=true}
+ }
+ render();
+ hud.textContent="RAMP TEST\nX: "+p.x.toFixed(2)+"  Y: "+p.y.toFixed(2)+"\nGROUND: "+floorNow.toFixed(2)+"  Z: "+p.z.toFixed(2)+"  FPS: "+Math.round(1/dt);
+ requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
