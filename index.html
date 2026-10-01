@@ -66,7 +66,18 @@ addEventListener("keydown",e=>{keys[e.code]=true;if(["Space","ArrowUp","ArrowDow
 addEventListener("keyup",e=>keys[e.code]=false);
 
 function solid(x,y){const gx=Math.floor(x),gy=Math.floor(y);return gy<0||gy>=map.length||gx<0||gx>=map[0].length||map[gy][gx]==="1"}
-function move(dx,dy){const r=.2;if(!solid(p.x+dx+r*Math.sign(dx),p.y))p.x+=dx;if(!solid(p.x,p.y+dy+r*Math.sign(dy)))p.y+=dy}
+function move(dx,dy){
+ const r=.2;
+ const nx=p.x+dx,ny=p.y+dy;
+ // Keep the player from crossing the ramp's raised edge from the side.
+ // Collision is based on the ramp's actual footprint, not its yellow outline.
+ const insideRamp=nx>=RAMP.x1-r&&nx<=RAMP.x2+r&&ny>=RAMP.y1-r&&ny<=RAMP.y2+r;
+ const currentFloor=rampFloor(p.x,p.y);
+ const nextFloor=rampFloor(nx,ny);
+ const climbingFromSide=insideRamp&&nextFloor>currentFloor+0.35&&Math.abs(dx)<Math.abs(dy)*2;
+ if(!solid(nx+r*Math.sign(dx),p.y)&&!climbingFromSide)p.x=nx;
+ if(!solid(p.x,ny+r*Math.sign(dy)))p.y=ny;
+}
 function cast(angle){
  const dx=Math.cos(angle),dy=Math.sin(angle);let mx=Math.floor(p.x),my=Math.floor(p.y);
  const ddx=Math.abs(1/dx),ddy=Math.abs(1/dy);let sx,sy,sdx,sdy;
@@ -154,6 +165,10 @@ function render(){
  const C=projectPoint(RAMP.x2,RAMP.y2,RAMP.height);
  const D=projectPoint(RAMP.x1,RAMP.y2,0);
  if(A&&B&&C&&D){
+  // Opaque ramp surface, with the yellow outline kept only as a debug edge.
+  ctx.fillStyle="#8b6a3e";
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+  ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
   ctx.strokeStyle="#ffff00";ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
   ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.stroke();
