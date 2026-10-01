@@ -222,11 +222,32 @@ function loop(now){
  const speed=(keys.ShiftLeft||keys.ShiftRight)?4.2:2.7;
  move((Math.cos(p.a)*f-Math.sin(p.a)*s)*speed*dt,(Math.sin(p.a)*f+Math.cos(p.a)*s)*speed*dt);
  const floorNow=rampFloor(p.x,p.y);
- if(p.ground)p.z=floorNow;
+
+ // The entire ramp surface is solid, not just the debug outline.
+ // While grounded, follow the ramp surface. If the player walks off
+ // an elevated edge, keep the current height and enter normal falling
+ // physics instead of snapping instantly to the lower floor.
+ if(p.ground){
+  if(p.z>floorNow+0.001){
+   p.ground=false;
+  }else{
+   p.z=floorNow;
+   p.vz=0;
+  }
+ }
+
  if(keys.Space&&p.ground){p.vz=3.8;p.ground=false}
+
  if(!p.ground){
-  p.vz-=12*dt;p.z+=p.vz*dt;
-  if(p.z<=floorNow){p.z=floorNow;p.vz=0;p.ground=true}
+  // Use the same gravity as jumping so falling off the ramp feels natural.
+  p.vz-=12*dt;
+  p.z+=p.vz*dt;
+
+  if(p.z<=floorNow){
+   p.z=floorNow;
+   p.vz=0;
+   p.ground=true;
+  }
  }
  render();
  hud.textContent="RAMP TEST\nX: "+p.x.toFixed(2)+"  Y: "+p.y.toFixed(2)+"\nGROUND: "+floorNow.toFixed(2)+"  Z: "+p.z.toFixed(2)+"  FPS: "+Math.round(1/dt);
