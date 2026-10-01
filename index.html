@@ -160,10 +160,15 @@ function render(){
    const y1=horizon-(z1-cameraHeight)*(H/(d1*.92));
    const top=Math.min(y0,y1);
    const bottom=Math.max(y0,y1);
-   if(bottom>horizon-2 && top<H){
+   if(top<H){
     const onRamp=(z0>0.001||z1>0.001);
     ctx.fillStyle=onRamp?"#8b6a3e":"#303030";
-    ctx.fillRect(x*step,Math.max(horizon-1,top),step+1,Math.max(1,bottom-top));
+
+    // Fill the complete projected interval between consecutive samples.
+    // This prevents transparent gaps/stripes in both the normal floor and ramp.
+    const fillTop=Math.max(horizon-1,Math.min(top,bottom));
+    const fillBottom=Math.min(H,Math.max(top,bottom));
+    if(fillBottom>fillTop)ctx.fillRect(x*step,fillTop,step+1,fillBottom-fillTop+1);
    }
   }
  }
