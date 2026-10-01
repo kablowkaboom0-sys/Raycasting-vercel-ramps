@@ -69,14 +69,24 @@ function solid(x,y){const gx=Math.floor(x),gy=Math.floor(y);return gy<0||gy>=map
 function move(dx,dy){
  const r=.2;
  const nx=p.x+dx,ny=p.y+dy;
- // Keep the player from crossing the ramp's raised edge from the side.
- // Collision is based on the ramp's actual footprint, not its yellow outline.
- const insideRamp=nx>=RAMP.x1-r&&nx<=RAMP.x2+r&&ny>=RAMP.y1-r&&ny<=RAMP.y2+r;
- const currentFloor=rampFloor(p.x,p.y);
- const nextFloor=rampFloor(nx,ny);
- const climbingFromSide=insideRamp&&nextFloor>currentFloor+0.35&&Math.abs(dx)<Math.abs(dy)*2;
- if(!solid(nx+r*Math.sign(dx),p.y)&&!climbingFromSide)p.x=nx;
- if(!solid(p.x,ny+r*Math.sign(dy)))p.y=ny;
+ const currentInside=p.x>=RAMP.x1&&p.x<=RAMP.x2&&p.y>=RAMP.y1&&p.y<=RAMP.y2;
+ const nextInside=nx>=RAMP.x1&&nx<=RAMP.x2&&ny>=RAMP.y1&&ny<=RAMP.y2;
+
+ // The ramp has one real entrance: the low/front edge at x1.
+ // This prevents stepping into the raised/high end or through a side and
+ // instantly getting the floor height of the top of the ramp.
+ const enteringRamp=!currentInside&&nextInside;
+ const enteringFromLowEdge=enteringRamp &&
+   p.x<RAMP.x1 && nx>=RAMP.x1 &&
+   p.y>=RAMP.y1-r && p.y<=RAMP.y2+r;
+
+ if(!solid(nx+r*Math.sign(dx),p.y) && (!enteringRamp||enteringFromLowEdge))p.x=nx;
+
+ // Side entry is blocked, but once on the ramp the player can move normally.
+ const afterXInside=p.x>=RAMP.x1&&p.x<=RAMP.x2&&p.y>=RAMP.y1&&p.y<=RAMP.y2;
+ const enteringFromSide=!currentInside&&!nextInside &&
+   afterXInside;
+ if(!solid(p.x,ny+r*Math.sign(dy)) && !enteringFromSide)p.y=ny;
 }
 function cast(angle){
  const dx=Math.cos(angle),dy=Math.sin(angle);let mx=Math.floor(p.x),my=Math.floor(p.y);
@@ -165,10 +175,24 @@ function render(){
  const C=projectPoint(RAMP.x2,RAMP.y2,RAMP.height);
  const D=projectPoint(RAMP.x1,RAMP.y2,0);
  if(A&&B&&C&&D){
-  // Opaque ramp surface, with the yellow outline kept only as a debug edge.
+  // Opaque ramp body: draw the surface and all visible base/side faces.
+  const A0=projectPoint(RAMP.x1,RAMP.y1,0);
+  const B0=projectPoint(RAMP.x2,RAMP.y1,0);
+  const C0=projectPoint(RAMP.x2,RAMP.y2,0);
+  const D0=projectPoint(RAMP.x1,RAMP.y2,0);
   ctx.fillStyle="#8b6a3e";
+
+  // Base/side faces make the ramp a solid opaque block rather than a
+  // transparent floating surface.
+  if(A0&&B0&&B&&A){ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(B0.x,B0.y);ctx.lineTo(A0.x,A0.y);ctx.closePath();ctx.fill();}
+  if(B0&&C0&&C&&B){ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(C0.x,C0.y);ctx.lineTo(B0.x,B0.y);ctx.closePath();ctx.fill();}
+  if(C0&&D0&&D&&C){ctx.beginPath();ctx.moveTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.lineTo(D0.x,D0.y);ctx.lineTo(C0.x,C0.y);ctx.closePath();ctx.fill();}
+  if(D0&&A0&&A&&D){ctx.beginPath();ctx.moveTo(D.x,D.y);ctx.lineTo(A.x,A.y);ctx.lineTo(A0.x,A0.y);ctx.lineTo(D0.x,D0.y);ctx.closePath();ctx.fill();}
+
+  // Opaque top surface.
   ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
   ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
+
   ctx.strokeStyle="#ffff00";ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
   ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.stroke();
