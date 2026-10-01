@@ -138,46 +138,7 @@ function render(){
   const wallBottom=horizon+cameraHeight*scale;
   const wallTop=horizon-(2.5-cameraHeight)*scale;
 
-  // Draw the opaque ramp body along each ray. This avoids the old
-  // four-corner overlay disappearing when a corner goes behind the camera.
-  const wallHit=wallDist;
-  let rampBodyStart=Infinity,rampBodyEnd=Infinity;
-  const rayDX=Math.cos(rayAngle),rayDY=Math.sin(rayAngle);
-  const candidates=[];
-  if(Math.abs(rayDX)>1e-6){
-   let d=(RAMP.x1-p.x)/rayDX;
-   if(d>0)candidates.push(d);
-   d=(RAMP.x2-p.x)/rayDX;
-   if(d>0)candidates.push(d);
-  }
-  if(Math.abs(rayDY)>1e-6){
-   let d=(RAMP.y1-p.y)/rayDY;
-   if(d>0)candidates.push(d);
-   d=(RAMP.y2-p.y)/rayDY;
-   if(d>0)candidates.push(d);
-  }
-  candidates.sort((a,b)=>a-b);
-  for(const d of candidates){
-   const yy=p.y+rayDY*d,xx=p.x+rayDX*d;
-   if(xx>=RAMP.x1-0.001&&xx<=RAMP.x2+0.001&&yy>=RAMP.y1-0.001&&yy<=RAMP.y2+0.001){
-    if(rampBodyStart===Infinity)rampBodyStart=d;
-    rampBodyEnd=d;
-   }
-  }
-  if(rampBodyStart<rampBodyEnd&&rampBodyStart<wallHit){
-   const near=Math.max(.01,rampBodyStart);
-   const far=Math.min(rampBodyEnd,wallHit);
-   const zNear=rampFloor(p.x+rayDX*near,p.y+rayDY*near);
-   const zFar=rampFloor(p.x+rayDX*far,p.y+rayDY*far);
-   const yTop=horizon-(Math.max(zNear,zFar)-cameraHeight)*(H/(near*.92));
-   const yBottom=horizon-(0-cameraHeight)*(H/(near*.92));
-   ctx.fillStyle="#8b6a3e";
-   ctx.fillRect(x*step,Math.min(yTop,yBottom),step+1,Math.abs(yBottom-yTop));
-  }
-
-  // Draw wall after the solid ramp body so the nearer geometry stays opaque.
-  const wallBottom=horizon+cameraHeight*scale;
-  const wallTop=horizon-(2.5-cameraHeight)*scale;
+  // Draw wall first.
   const shade=hit.side?150:180;
   ctx.fillStyle="rgb("+shade+","+shade+","+shade+")";
   ctx.fillRect(x*step,wallTop,step+1,Math.max(1,wallBottom-wallTop));
@@ -207,6 +168,33 @@ function render(){
   }
  }
 
+ // Draw a strong slope edge for debugging, but the visible surface above
+ // is now produced by floor-height projection rather than a screen overlay.
+ const A=projectPoint(RAMP.x1,RAMP.y1,0);
+ const B=projectPoint(RAMP.x2,RAMP.y1,RAMP.height);
+ const C=projectPoint(RAMP.x2,RAMP.y2,RAMP.height);
+ const D=projectPoint(RAMP.x1,RAMP.y2,0);
+ if(A&&B&&C&&D){
+  // Opaque ramp body: draw the surface and all visible base/side faces.
+  const A0=projectPoint(RAMP.x1,RAMP.y1,0);
+  const B0=projectPoint(RAMP.x2,RAMP.y1,0);
+  const C0=projectPoint(RAMP.x2,RAMP.y2,0);
+  const D0=projectPoint(RAMP.x1,RAMP.y2,0);
+  ctx.fillStyle="#8b6a3e";
+
+  // Base/side faces make the ramp a solid opaque block rather than a
+  // transparent floating surface.
+  if(A0&&B0&&B&&A){ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(B0.x,B0.y);ctx.lineTo(A0.x,A0.y);ctx.closePath();ctx.fill();}
+  if(B0&&C0&&C&&B){ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(C0.x,C0.y);ctx.lineTo(B0.x,B0.y);ctx.closePath();ctx.fill();}
+  if(C0&&D0&&D&&C){ctx.beginPath();ctx.moveTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.lineTo(D0.x,D0.y);ctx.lineTo(C0.x,C0.y);ctx.closePath();ctx.fill();}
+  if(D0&&A0&&A&&D){ctx.beginPath();ctx.moveTo(D.x,D.y);ctx.lineTo(A.x,A.y);ctx.lineTo(A0.x,A0.y);ctx.lineTo(D0.x,D0.y);ctx.closePath();ctx.fill();}
+
+  // Opaque top surface.
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+  ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
+
+  // No debug outline: the ramp is rendered only as solid geometry.
+ }
 
  ctx.strokeStyle="#fff8";ctx.lineWidth=1;
  ctx.beginPath();
