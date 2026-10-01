@@ -164,42 +164,16 @@ function render(){
     const onRamp=(z0>0.001||z1>0.001);
     ctx.fillStyle=onRamp?"#8b6a3e":"#303030";
 
-    // Fill the complete projected interval between consecutive samples.
-    // This prevents transparent gaps/stripes in both the normal floor and ramp.
-    const fillTop=Math.max(horizon-1,Math.min(top,bottom));
+    // Never leave a hole above a ramp segment when the camera is standing on it.
+    // Extend the projected ramp/floor segment down to the previous boundary.
+    const fillTop=Math.max(0,Math.min(top,bottom));
     const fillBottom=Math.min(H,Math.max(top,bottom));
     if(fillBottom>fillTop)ctx.fillRect(x*step,fillTop,step+1,fillBottom-fillTop+1);
    }
   }
  }
 
- // Draw a strong slope edge for debugging, but the visible surface above
- // is now produced by floor-height projection rather than a screen overlay.
- const A=projectPoint(RAMP.x1,RAMP.y1,0);
- const B=projectPoint(RAMP.x2,RAMP.y1,RAMP.height);
- const C=projectPoint(RAMP.x2,RAMP.y2,RAMP.height);
- const D=projectPoint(RAMP.x1,RAMP.y2,0);
- if(A&&B&&C&&D){
-  // Opaque ramp body: draw the surface and all visible base/side faces.
-  const A0=projectPoint(RAMP.x1,RAMP.y1,0);
-  const B0=projectPoint(RAMP.x2,RAMP.y1,0);
-  const C0=projectPoint(RAMP.x2,RAMP.y2,0);
-  const D0=projectPoint(RAMP.x1,RAMP.y2,0);
-  ctx.fillStyle="#8b6a3e";
 
-  // Base/side faces make the ramp a solid opaque block rather than a
-  // transparent floating surface.
-  if(A0&&B0&&B&&A){ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(B0.x,B0.y);ctx.lineTo(A0.x,A0.y);ctx.closePath();ctx.fill();}
-  if(B0&&C0&&C&&B){ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(C0.x,C0.y);ctx.lineTo(B0.x,B0.y);ctx.closePath();ctx.fill();}
-  if(C0&&D0&&D&&C){ctx.beginPath();ctx.moveTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.lineTo(D0.x,D0.y);ctx.lineTo(C0.x,C0.y);ctx.closePath();ctx.fill();}
-  if(D0&&A0&&A&&D){ctx.beginPath();ctx.moveTo(D.x,D.y);ctx.lineTo(A.x,A.y);ctx.lineTo(A0.x,A0.y);ctx.lineTo(D0.x,D0.y);ctx.closePath();ctx.fill();}
-
-  // Opaque top surface.
-  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
-  ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
-
-  // No debug outline: the ramp is rendered only as solid geometry.
- }
 
  ctx.strokeStyle="#fff8";ctx.lineWidth=1;
  ctx.beginPath();
