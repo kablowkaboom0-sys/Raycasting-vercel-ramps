@@ -193,9 +193,7 @@ function render(){
   ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
   ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();
 
-  ctx.strokeStyle="#ffff00";ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
-  ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.stroke();
+  // No debug outline: the ramp is rendered only as solid geometry.
  }
 
  ctx.strokeStyle="#fff8";ctx.lineWidth=1;
